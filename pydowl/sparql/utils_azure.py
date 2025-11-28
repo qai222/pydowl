@@ -8,23 +8,20 @@ def blob_upload_string_or_bytes(
     connection_string: str, container_name: str, blob_name: str, data: bytes | str
 ):
     """
-    Uploads byte data to Azure Blob Storage.
+    Upload a string or bytes payload to Azure Blob Storage, overwriting any
+    existing blob with the same name.
 
-    A container name must be a valid DNS name, conforming to the following naming rules:
-
-    Container names must start or end with a letter or number, and can contain only letters, numbers, and the hyphen/minus (-) character.
-
-    Every hyphen/minus (-) character must be immediately preceded and followed by a letter or number; consecutive hyphens aren't permitted in container names.
-
-    All letters in a container name must be lowercase.
-
-    Container names must be from 3 through 63 characters long.
+    The function is intentionally liberal about ``data``: if a ``str`` is
+    provided it is passed straight to the SDK (which will UTF-8 encode it);
+    ``bytes`` are uploaded as-is. Containers are created on demand using the
+    provided connection string, subject to Azure's DNS-style naming rules
+    (lowercase letters/numbers, hyphens between alphanumerics, length 3–63).
 
     Args:
         connection_string (str): Azure Storage connection string.
         container_name (str): Name of the container to upload the blob to.
         blob_name (str): Name of the blob.
-        data (bytes): Byte data to upload.
+        data (bytes | str): Payload to upload.
     """
     try:
         # Create a BlobServiceClient
@@ -67,13 +64,18 @@ def blob_upload_string_or_bytes(
 
 def blob_download_bytes_or_str(blob_url: str, sas_token: str) -> bytes:
     """
-    Downloads a blob from Azure Blob Storage as bytes given its URL.
+    Download a blob's raw bytes from Azure Blob Storage.
+
+    ``sas_token`` is appended only if provided (empty/whitespace strings are
+    ignored). Callers are responsible for decoding the returned bytes into
+    text or structured data as appropriate.
 
     Args:
-        blob_url (str): The full URL to the blob. This can include a SAS token if the blob is private.
+        blob_url (str): Full blob URL (may already include a SAS token).
+        sas_token (str): SAS token to use when ``blob_url`` does not embed one.
 
     Returns:
-        bytes: The content of the blob as bytes.
+        bytes: The blob contents.
 
     Raises:
         AzureError: If there is an issue accessing or downloading the blob.

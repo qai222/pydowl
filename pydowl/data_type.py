@@ -185,6 +185,9 @@ class DateTimeDatatype:
     """
     A timezone-aware datetime literal.
 
+    Naive datetimes are accepted for compatibility; they are normalised
+    to UTC on serialisation so round-trips remain unambiguous.
+
     In OWL this is represented as an RDF literal with datatype IRI
     ``http://pydowl.org/dtype#DateTime``.
     """

@@ -7,7 +7,8 @@ SPARQL 1.1 endpoint.
 
 Features
 --------
-* Memory-efficient streaming of N-Triples from Owlready2
+* Line-by-line iteration over Owlready2 N-Triples (currently buffers the
+  full serialisation in-memory)
 * Optional ABox-only export
 * Blank-node detection (fail-fast)
 * Large-literal offloading to Azure Blob Storage
@@ -106,7 +107,12 @@ def export_abox(onto: Ontology) -> Graph:
 
 def stream_ntriples(onto: Ontology) -> Generator[str, None, None]:
     """
-    Stream N-Triples lines from an ontology using an in-memory BytesIO.
+    Stream N-Triples lines from an ontology.
+
+    Owlready2 writes the entire serialisation into an in-memory
+    ``BytesIO`` buffer first; we then iterate line-by-line. This avoids
+    holding decoded strings twice but still buffers the whole graph in
+    memory.
     """
     buf = io.BytesIO()
     onto.save(file=buf, format="ntriples")
