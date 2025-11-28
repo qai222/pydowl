@@ -117,6 +117,7 @@ def get_inner_type(field_info: FieldInfoT) -> InnerType:
     # Callers that rely on a single inner type (Optionals, List[T]) will
     # never hit this path; for others (e.g. PY_JSON dicts) returning the
     # annotation keeps them working without spurious assertions.
+    assert annotation is not None
     return annotation
 
 
@@ -201,7 +202,7 @@ class FieldTypeCategory(enum.StrEnum):
 
 
 def identify_field_type_category(
-        field_info: FieldInfo, field_name: str | None = None
+    field_info: FieldInfo, field_name: str | None = None
 ) -> FieldTypeCategory:
     """
     Map a Pydantic :class:`FieldInfo` to a :class:`FieldTypeCategory`.
@@ -241,7 +242,7 @@ def identify_field_type_category(
             return FieldTypeCategory.OPTIONAL_NPND_ARRAY
         elif isinstance(inner_type, type) and issubclass(inner_type, enum.Enum):
             if issubclass(inner_type, enum.StrEnum) or issubclass(
-                    inner_type, strenum.StrEnum
+                inner_type, strenum.StrEnum
             ):
                 return FieldTypeCategory.OPTIONAL_STR_ENUM
             elif issubclass(inner_type, enum.IntEnum):
