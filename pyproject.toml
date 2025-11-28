@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=70", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pydowl"
+# Reads the version from pydowl/version.py, which itself reads pydowl/VERSION
+dynamic = ["version"]
+description = "Glue layer: Pydantic ⟷ OWL (Owlready2) with SPARQL push/pull and custom datatypes."
+readme = { file = "readme.md", content-type = "text/markdown" }
+requires-python = ">=3.10"
+keywords = ["OWL", "RDF", "Pydantic", "Owlready2", "Knowledge Graph", "SPARQL"]
+authors = [{ name = "Qianxiang Ai" }]
+
+# Core runtime dependencies
+dependencies = [
+    "pydantic==2.11.1",
+    "numpy==2.2.4",
+    "loguru==0.7.3",
+    "pydantic-numpy==6.0.1",
+    "SPARQLWrapper==2.0.0",
+    "rdflib==7.0.0",
+    "pandas==2.2.3",
+    "pyarrow==17.0.0",
+    "StrEnum>=0.4.15",
+    "owlready2 @ git+https://bitbucket.org/jibalamy/owlready2@790776647ea3f5dc7bd1b4aa415d4109ea5dc7a9",
+    "azure-core~=1.32.0",
+    "azure-storage-blob~=12.25.1",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest==8.3.5",
+    "ruff>=0.6.8",
+    "mypy>=1.10",
+    "python-dotenv==1.2.1",
+    "pytest-dotenv==0.5.2",
+    "pre-commit>=3.7",
+]
+
+[project.urls]
+Homepage = "https://github.com/Abstrax-Tech/pydowl"
+Repository = "https://github.com/Abstrax-Tech/pydowl"
+Issues = "https://github.com/Abstrax-Tech/pydowl/issues"
+
+[tool.setuptools]
+packages = { find = { include = ["pydowl*"] } }
+include-package-data = true
+
+# Ensure the VERSION file is present in wheels
+[tool.setuptools.package-data]
+pydowl = ["VERSION"]
+
+# Pull the version string from pydowl/version.py (__version__)
+[tool.setuptools.dynamic]
+version = { attr = "pydowl.version.__version__" }
