@@ -1,84 +1,62 @@
-###  Registry
+## Registry
 
-`PydOwlRegistry` is an optional, **process-local identity map**:
+`PydOwlRegistry` is a **process-local, weakly referenced identity map** for `PydOwlClass` instances. It keeps at most one live Python object per `(concrete_model_class, identifier)` pair while that object is still strongly referenced somewhere else in your process.
 
-```python
-{ (PydOwlClass subclass, identifier) -> weakref(instance) }
-```
+### How it is populated automatically
 
-### How it’s used implicitly
+`from_data` registers every instance it creates, and all higher-level loaders delegate to it:
 
-The registry is populated whenever you go through `from_data`:
+- `PydOwlClass.from_mongo_docs(...)`
+- `PydOwlClass.pull_owlready(...)`
+- SPARQL pulls in both full-graph and ABox modes
 
-* `PydOwlClass.from_data(data)`
-  (called by many internal paths)
-* `PydOwlClass.from_mongo_docs(...)`
-* `PydOwlClass.pull_owlready(...)`
-* `pydowl.sparql.pull` (both full and ABox modes)
-
-Those helpers all:
+The sequence is consistent:
 
 1. Look up `(cls, identifier)` in the registry.
-2. If an instance is present and still alive:
+2. If found and still alive, **reuse** the instance and call `update(**data)` on it.
+3. Otherwise, create, register, and return a new instance.
 
-    * call `instance.update(**data)` and return it.
-3. Otherwise:
+### Why it exists
 
-    * create a new instance via `model_validate`,
-    * register it,
-    * return it.
-
-This gives you:
-
-* **Cross-call identity reuse**
-  Loading the same `(cls, id)` multiple times in a process yields the same Python object, updated in-place.
-
-* **Merging overlapping subgraphs**
-  If two separate pulls touch the same node, they converge to the same instance rather than diverging into duplicates.
+- **Identity reuse across calls:** repeated pulls of the same node share one object instead of silent duplicates.
+- **Merging overlapping subgraphs:** separate loads that touch the same node converge on the same instance, so updates merge instead of drifting apart.
+- **Thread-safe and disposable:** lookups/updates are guarded by a lock; entries are weak refs so garbage collection can reclaim unused objects without manual cleanup.
 
 ### When to clear it
 
-It’s usually **not** necessary to interact with the registry in simple scripts. It’s helpful when:
+The registry is process-local only; it is not persisted between runs. Clear it when you want hard isolation:
 
-* You’re writing tests and want strict isolation between tests:
+```python
+from pydowl import PydOwlRegistry
 
-  ```python
-  from pydowl import PydOwlRegistry
+PydOwlRegistry.clear()  # e.g., between tests or batch jobs
+```
 
-  PydOwlRegistry.clear()
-  # run test
-  PydOwlRegistry.clear()
-  ```
-
-* You’re in a long-lived process and want to explicitly “reset” identity between batches or requests.
+You can also `delete(cls, identifier)` to remove one entry. Clearing is especially helpful in test suites where identity reuse between cases would mask bugs.
 
 ### When to register manually
 
-Manual registration is only needed when you:
+You rarely need to touch the registry directly. Consider it when:
 
-* Construct instances **by hand** and want later loads to merge into those exact instances:
+- **Manually constructed graphs should win:** you build objects from an API payload and want subsequent Mongo/OWL/SPARQL pulls to merge into the same instances.
+- **Seeding identity before hydration:** call `PydOwlRegistry.register_graph(root)` to register every reachable `OPTIONAL_PYD_CLS` / `LIST_PYD_CLS` node before a pull, ensuring overlap collapses onto your pre-built objects.
 
-  ```python
-  from pydowl import PydOwlRegistry
+Minimal example:
 
-  alice = Person(identifier="alice", name="Alice")
-  PydOwlRegistry.register(alice)
+```python
+from pydowl import PydOwlRegistry
 
-  # later: from SPARQL/Mongo
-  alice2 = Person.from_mongo_docs("alice", docs)
-  assert alice2 is alice  # same instance, updated
-  ```
+alice = Person(identifier="alice", name="Alice")
+PydOwlRegistry.register(alice)
 
-* Want to seed the registry with an entire graph:
+# Later: hydrate from storage
+alice2 = Person.from_mongo_docs("alice", docs)
+assert alice2 is alice  # same instance, updated via `update`
+```
 
-  ```python
-  from pydowl import PydOwlRegistry
+### Practical limits
 
-  root = build_my_graph()
-  PydOwlRegistry.register_graph(root)
-  ```
+- **Weak references only:** if no other code holds a strong reference, the instance may be garbage collected and recreated on the next pull.
+- **No cross-process guarantees:** each process has its own registry; you still need canonical storage (SPARQL, Mongo, etc.) for durability.
 
-  This walks `OPTIONAL_PYD_CLS` and `LIST_PYD_CLS` fields, registering every reachable node. Later pulls (from Mongo or SPARQL/Owlready) will reuse those instances instead of creating new ones.
-
-If you don’t care about strict in-process identity reuse, you can happily ignore `PydOwlRegistry` and let the default behaviour handle it.
-
+Keeping these constraints in mind lets you use the registry as a simple, fail-fast cache of in-memory identity rather than as a persistence layer.

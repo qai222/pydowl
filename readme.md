@@ -1,13 +1,13 @@
 # pydowl
 
-**pydowl** bridges **Pydantic** models and **OWL / Graph DBs**.
+**pydowl** bridges **Pydantic** models and **OWL / Graph DBs** so you can model your knowledge graph with familiar Python types and project it to multiple stores without rewriting schemas.
 
-Define your ontology schema as Pydantic models, and pydowl handles:
-- projecting instances into **Owlready2**,
-- pushing/pulling to **SPARQL 1.1 endpoints** (Virtuoso, GraphDB, …),
-- storing node-centric views in **MongoDB**,
-- encoding complex Python types as custom OWL datatypes,
-- and optionally offloading large literals to **Azure Blob Storage**.
+What you get:
+
+- **Deterministic mappings** between Pydantic fields and OWL properties with discriminator-based polymorphism.
+- **Multiple backends**: Owlready2 for local graphs, SPARQL endpoints for remote stores, and MongoDB for node-centric storage.
+- **Typed literals**: built-in and custom datatype support (datetimes, NumPy arrays, JSON blobs, enums, etc.).
+- **Optional blob offload**: store large values in Azure Blob Storage and keep IRIs in the graph.
 
 ![pydowl](docs/float/pydowl.png)
 
@@ -15,9 +15,21 @@ Define your ontology schema as Pydantic models, and pydowl handles:
 
 ## Installation
 
+Requires Python **3.10+**.
+
+Install from GitHub (use a token if you need private access):
+
 ```bash
-pip install git+https://${GITHUB_USER}:${GITHUB_TOKEN}@github.com/Abstrax-Tech/pydowl
+pip install "git+https://${GITHUB_USER:-""}:${GITHUB_TOKEN:-""}@github.com/Abstrax-Tech/pydowl"
 ````
+
+For local development, clone the repo and install in editable mode:
+
+```bash
+git clone https://github.com/Abstrax-Tech/pydowl.git
+cd pydowl
+pip install -e .
+```
 
 ---
 
@@ -111,9 +123,6 @@ push_pyd_to_sparql_endpoint(alice, endpoint, abox_only=False)
 
 ### 4. Pull from SPARQL (full graph vs ABox-only)
 
-#### 
-
-
 ```python
 from pydowl.sparql import pull_pyd_from_sparql_endpoint
 
@@ -136,7 +145,6 @@ alice_full = pull_pyd_from_sparql_endpoint(
 assert isinstance(alice_full, Person)
 print(alice_full.addresses[0].city)  # 'Springfield'
 
-"""
 ABox-only mode (Tier 2)
 Treat the SPARQL store as a fact store and let the schema drive what to fetch:
 In `"abox"` mode:
@@ -347,6 +355,22 @@ This gives you true value semantics for nodes like quantities, configurations, e
 and makes deduplication by ID reliable.
 """
 ```
+
+---
+
+
+
+## Identity registry (process-local cache)
+
+`PydOwlRegistry` keeps a weakly-referenced map of `(model_class, identifier)` → instance so repeated pulls merge into the same Python objects instead of producing duplicates. It is populated automatically by `from_data` (used by Mongo/SPARQL/Owlready pulls) but can be cleared when you need isolation:
+
+```python
+from pydowl import PydOwlRegistry
+
+PydOwlRegistry.clear()  # useful between tests or long-lived batches
+```
+
+Manual registration is optional; use it when you construct objects by hand and want later pulls to merge into them. See `registry.md` for the full lifecycle and examples.
 
 ---
 
